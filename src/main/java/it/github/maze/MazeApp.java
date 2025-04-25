@@ -29,13 +29,14 @@ public class MazeApp extends Application {
     private static final int ROWS = 20;
     private static final int CELL_SIZE = 20;
 
+    private Cell previousCursorCell;
     private MazeGrid grid;
     private StepGenerator generator;
     private StepSolver solver;
     private Canvas canvas;
     private Timeline timeline;
     private boolean generating;
-    private List<Cell> solverTrail; // traccia del solver
+    private List<Cell> solverTrail;
 
     public static void main(String[] args) {
         launch(args);
@@ -71,28 +72,28 @@ public class MazeApp extends Application {
             default    -> throw new IllegalArgumentException("Generator non implementato");
         };
         solver = null;
-        if (timeline != null) {
-            timeline.stop();
-        }
+        previousCursorCell = null;
+        solverTrail = new ArrayList<>();
+
+        if (timeline != null) timeline.stop();
 
         timeline = new Timeline(new KeyFrame(Duration.millis(50), e -> {
             if (generating) {
                 if (generator.hasNextStep()) {
                     generator.nextStep();
-                    drawGrid();
+                    drawGrid(); // durante generazione disegniamo tutto
                 } else {
                     generating = false;
                     solver = new BFSSolver(grid, grid.getStart(), grid.getEnd());
-                    solverTrail = new ArrayList<>();
+                    drawGrid(); // disegniamo una volta la griglia finale
                 }
             } else {
                 if (solver.hasNextStep()) {
                     solver.nextStep();
-                    if (solver instanceof BFSSolver) {
-                        Cell cur = ((BFSSolver) solver).getCurrent();
+                    if (solver instanceof BFSSolver bfs) {
+                        Cell cur = bfs.getCurrent();
                         if (cur != null) solverTrail.add(cur);
                     }
-                    drawGrid();
                     drawSolverTrail();
                     drawSolverCursor();
                 } else {
@@ -139,14 +140,25 @@ public class MazeApp extends Application {
     }
 
     private void drawSolverCursor() {
-        if (!(solver instanceof BFSSolver)) return;
-        Cell cur = ((BFSSolver) solver).getCurrent();
+        if (!(solver instanceof BFSSolver bfs)) return;
+        Cell cur = bfs.getCurrent();
         if (cur == null) return;
+
         GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        if (previousCursorCell != null && previousCursorCell != cur) {
+            int xPrev = previousCursorCell.getCol() * CELL_SIZE;
+            int yPrev = previousCursorCell.getRow() * CELL_SIZE;
+            Cell cell = grid.getCell(previousCursorCell.getRow(), previousCursorCell.getCol());
+            gc.setFill(cell.isVisited() ? Color.rgb(255, 0, 0, 0.3) : Color.BLACK);
+            gc.fillRect(xPrev + 2, yPrev + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+        }
+
         gc.setFill(Color.RED);
         int x = cur.getCol() * CELL_SIZE;
         int y = cur.getRow() * CELL_SIZE;
         gc.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+        previousCursorCell = cur;
     }
 
     private void drawPath() {
@@ -155,7 +167,7 @@ public class MazeApp extends Application {
         for (Cell cell : solver.getPath()) {
             int x = cell.getCol() * CELL_SIZE;
             int y = cell.getRow() * CELL_SIZE;
-            gc.fillOval(x + CELL_SIZE/4, y + CELL_SIZE/4, CELL_SIZE/2, CELL_SIZE/2);
+            gc.fillOval(x + CELL_SIZE / 4, y + CELL_SIZE / 4, CELL_SIZE / 2, CELL_SIZE / 2);
         }
     }
 }
